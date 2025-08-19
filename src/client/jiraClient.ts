@@ -56,7 +56,12 @@ function base64Encode(s: string) {
 
 function buildUrl(host: string, requestOptions: RequestOptions): string {
     const basePath = requestOptions.noBasePath ? '' : SettingsData.apiBasePath
-    const url = new URL(`${host}${basePath}${requestOptions.path}`)
+    // Normalize URL parts to prevent double slashes
+    const normalizedHost = host.endsWith('/') ? host.slice(0, -1) : host
+    const normalizedBasePath = basePath.startsWith('/') ? basePath : '/' + basePath
+    const normalizedPath = requestOptions.path.startsWith('/') ? requestOptions.path : '/' + requestOptions.path
+    
+    const url = new URL(`${normalizedHost}${normalizedBasePath}${normalizedPath}`)
     if (requestOptions.queryParameters) {
         url.search = requestOptions.queryParameters.toString()
     }
@@ -70,6 +75,8 @@ function buildHeaders(account: IJiraIssueAccountSettings): Record<string, string
     } else if (account.authenticationType === EAuthenticationTypes.BEARER_TOKEN) {
         requestHeaders['Authorization'] = `Bearer ${account.bareToken}`
     }
+    // Add XSRF protection bypass for Jira Cloud API POST requests
+    requestHeaders['X-Atlassian-Token'] = 'no-check'
     return requestHeaders
 }
 
@@ -94,19 +101,24 @@ async function sendRequest(requestOptions: RequestOptions): Promise<any> {
         }
     }
 
-    if (response && response.headers && response.headers['content-type'].contains('json') && response.json && response.json.errorMessages) {
+    if (response && response.headers && response.headers['content-type'] && response.headers['content-type'].contains('json') && response.json && response.json.errorMessages) {
         throw new Error(response.json.errorMessages.join('\n'))
     } else if (response && response.status) {
         switch (response.status) {
             case 400:
-                throw new Error(`The query is not valid`)
+                throw new Error(`Bad Request: The query is not valid`)
+            case 401:
+                throw new Error(`Unauthorized: Please check your authentication credentials`)
+//            case 403:
+//                throw new Error(`Forbidden: You don't have permission to access this resource. Check your API token permissions and Jira project access.`)
             case 404:
-                throw new Error(`Issue does not exist`)
+                throw new Error(`Not Found: Issue does not exist`)
             default:
-                throw new Error(`HTTP status ${response.status}`)
+                const errorMsg = response.json && response.json.message ? response.json.message : `HTTP ${response.status}`
+                throw new Error(`Jira API ${response.status} Error: ${errorMsg}`)
         }
     } else {
-        throw new Error(response as any)
+        throw new Error(`Unknown error occurred: ${JSON.stringify(response)}`)
     }
 }
 
@@ -115,7 +127,11 @@ async function sendRequestWithAccount(account: IJiraIssueAccountSettings, reques
     const requestUrlParam: RequestUrlParam = {
         method: requestOptions.method,
         url: buildUrl(account.host, requestOptions),
-        headers: buildHeaders(account),
+        headers: {
+            ...buildHeaders(account),
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
         contentType: 'application/json',
     }
     
@@ -125,9 +141,43 @@ async function sendRequestWithAccount(account: IJiraIssueAccountSettings, reques
     }
     
     try {
+        console.log('JiraIssue:Request Details:', {
+            method: requestUrlParam.method,
+            url: requestUrlParam.url,
+            headers: requestUrlParam.headers,
+            hasBody: !!requestUrlParam.body,
+            bodyLength: requestUrlParam.body
+                ? typeof requestUrlParam.body === 'string'
+                    ? requestUrlParam.body.length
+                    : (requestUrlParam.body instanceof ArrayBuffer ? requestUrlParam.body.byteLength : 0)
+                : 0
+        })
+        
         response = await requestUrl(requestUrlParam)
+        
+        console.log('JiraIssue:Response Details:', {
+            status: response.status,
+            headers: response.headers,
+            hasJson: !!response.json,
+            jsonKeys: response.json ? Object.keys(response.json) : []
+        })
+        
         SettingsData.logRequestsResponses && console.info('JiraIssue:Fetch:', { request: requestUrlParam, response })
     } catch (errorResponse) {
+        console.error('JiraIssue:Request Failed:', {
+            request: {
+                method: requestUrlParam.method,
+                url: requestUrlParam.url,
+                headers: requestUrlParam.headers
+            },
+            error: {
+                status: errorResponse.status,
+                headers: errorResponse.headers,
+                json: errorResponse.json,
+                message: errorResponse.message
+            }
+        })
+        
         SettingsData.logRequestsResponses && console.warn('JiraIssue:Fetch:', { request: requestUrlParam, response: errorResponse })
         response = errorResponse
     }
