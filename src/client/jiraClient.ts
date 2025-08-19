@@ -285,7 +285,11 @@ export default {
             path: `/search/jql`,
             account: opt.account,
             body: JSON.stringify(requestBody),
+            noBasePath: true, // Use hardcoded path for new JQL endpoint
         }
+        
+        // Override the path to use the correct API v3 endpoint for JQL
+        requestOptions.path = '/rest/api/3/search/jql'
         
         const searchResults = await sendRequestWithBody(requestOptions) as IJiraSearchResults
         
