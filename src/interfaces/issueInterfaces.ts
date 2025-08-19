@@ -111,6 +111,7 @@ export interface IJiraSearchResults {
     maxResults: number
     startAt: number
     total: number
+    nextPageToken?: string
     account: IJiraIssueAccountSettings
 }
 

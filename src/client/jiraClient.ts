@@ -9,6 +9,7 @@ interface RequestOptions {
     queryParameters?: URLSearchParams
     account?: IJiraIssueAccountSettings
     noBasePath?: boolean
+    body?: string
 }
 
 function getMimeType(imageBuffer: ArrayBuffer): string {
@@ -117,6 +118,12 @@ async function sendRequestWithAccount(account: IJiraIssueAccountSettings, reques
         headers: buildHeaders(account),
         contentType: 'application/json',
     }
+    
+    // Add body for POST requests
+    if (requestOptions.body) {
+        requestUrlParam.body = requestOptions.body
+    }
+    
     try {
         response = await requestUrl(requestUrlParam)
         SettingsData.logRequestsResponses && console.info('JiraIssue:Fetch:', { request: requestUrlParam, response })
@@ -125,6 +132,10 @@ async function sendRequestWithAccount(account: IJiraIssueAccountSettings, reques
         response = errorResponse
     }
     return response
+}
+
+async function sendRequestWithBody(requestOptions: RequestOptions): Promise<any> {
+    return sendRequest(requestOptions)
 }
 
 async function preFetchImage(account: IJiraIssueAccountSettings, url: string): Promise<string> {
@@ -195,27 +206,39 @@ export default {
         return issue
     },
 
-    async getSearchResults(query: string, options: { limit?: number, offset?: number, fields?: string[], account?: IJiraIssueAccountSettings } = {}): Promise<IJiraSearchResults> {
+    async getSearchResults(query: string, options: { limit?: number, offset?: number, fields?: string[], account?: IJiraIssueAccountSettings, nextPageToken?: string } = {}): Promise<IJiraSearchResults> {
         const opt = {
             fields: options.fields || [],
             offset: options.offset || 0,
             limit: options.limit || 50,
             account: options.account || null,
+            nextPageToken: options.nextPageToken || null,
         }
-        const queryParameters = new URLSearchParams({
+        
+        // Use POST for new JQL endpoint with token-based pagination
+        const requestBody: any = {
             jql: query,
-            fields: opt.fields.join(','),
-            startAt: opt.offset > 0 ? opt.offset.toString() : '',
-            maxResults: opt.limit > 0 ? opt.limit.toString() : '',
-        })
-        const searchResults = await sendRequest(
-            {
-                method: 'GET',
-                path: `/search`,
-                queryParameters: queryParameters,
-                account: opt.account,
-            }
-        ) as IJiraSearchResults
+            fields: opt.fields.length > 0 ? opt.fields : undefined,
+            maxResults: opt.limit > 0 ? opt.limit : 50,
+        }
+        
+        // Add pagination token if provided
+        if (opt.nextPageToken) {
+            requestBody.startAt = opt.nextPageToken
+        } else if (opt.offset > 0) {
+            // Fallback for backward compatibility - convert offset to startAt
+            requestBody.startAt = opt.offset
+        }
+        
+        const requestOptions = {
+            method: 'POST',
+            path: `/search/jql`,
+            account: opt.account,
+            body: JSON.stringify(requestBody),
+        }
+        
+        const searchResults = await sendRequestWithBody(requestOptions) as IJiraSearchResults
+        
         for (const issue of searchResults.issues) {
             issue.account = searchResults.account
             await fetchIssueImages(issue)

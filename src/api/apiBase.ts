@@ -24,7 +24,7 @@ export async function getIssue(issueKey: string, options: { fields?: string[], a
     return cacheWrapper(JiraClient.getIssue)(issueKey, options)
 }
 
-export async function getSearchResults(query: string, options: { limit?: number, offset?: number, fields?: string[], account?: IJiraIssueAccountSettings } = {}): Promise<IJiraSearchResults> {
+export async function getSearchResults(query: string, options: { limit?: number, offset?: number, fields?: string[], account?: IJiraIssueAccountSettings, nextPageToken?: string } = {}): Promise<IJiraSearchResults> {
     return cacheWrapper(JiraClient.getSearchResults)(query, options)
 }
 
