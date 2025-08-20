@@ -82,7 +82,9 @@ function getAccountBandStyle(account: IJiraIssueAccountSettings): string {
 
 function renderSearchFooter(rootEl: HTMLElement, searchView: SearchView, searchResults: IJiraSearchResults): HTMLElement {
     const searchFooter = createDiv({ cls: 'search-footer' })
-    const searchCount = `Total results: ${searchResults.total.toString()} - ${searchResults.account.alias}`
+    const totalCount = searchResults.total !== undefined ? searchResults.total.toString() : 'unknown'
+    const accountAlias = searchResults.account?.alias || 'unknown'
+    const searchCount = `Total results: ${totalCount} - ${accountAlias}`
 
     if(SettingsData.showJiraLink) {
         createEl('a', {
@@ -127,7 +129,7 @@ export const SearchFenceRenderer = async (source: string, rootEl: HTMLElement, c
         } else {
             // console.log(`Search results not available in the cache`)
             RC.renderLoadingItem('Loading...')
-            JiraClient.getSearchResults(searchView.query, { limit: searchView.limit || SettingsData.searchResultsLimit, account: searchView.account })
+            JiraClient.getSearchResults(searchView.query, { limit: searchView.limit || SettingsData.searchResultsLimit, fields: ["*all"],account: searchView.account })
                 .then(newSearchResults => {
                     searchView.account = newSearchResults.account
                     const searchResults = ObjectsCache.add(searchView.getCacheKey(), newSearchResults).data as IJiraSearchResults

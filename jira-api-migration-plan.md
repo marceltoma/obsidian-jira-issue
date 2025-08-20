@@ -233,10 +233,23 @@ const getAllIssues = async (jql) => {
 - **Performance Impact**: Expected improvement based on Atlassian benchmarks
 - **Breaking Changes**: None - seamless upgrade
 
+### Critical Security Update (August 19, 2025)
+
+**Issue Discovered**: On August 19, 2025, users reported HTTP 403 Forbidden errors when using the plugin, despite successful API migration.
+
+**Root Cause**: Atlassian implemented enhanced API security requiring `User-Agent` headers for all requests. The plugin was missing this header while curl commands (which include User-Agent by default) continued working.
+
+**Fix Applied**: Added mandatory `User-Agent: obsidian-jira-issue-plugin` header to all API requests.
+
+**Impact**: This security enforcement likely coincided with the August 1, 2025 API migration deadline, affecting all users simultaneously.
+
+**Lesson Learned**: API migrations may include security policy changes beyond just endpoint updates. Always include proper request headers to comply with API security requirements.
+
 ### Next Steps
 
-The migration is **COMPLETE and READY** for production deployment. The plugin will continue working after August 1, 2025 deadline with improved performance.
+The migration is **COMPLETE and READY** for production deployment. The plugin will continue working after August 1, 2025 deadline with improved performance and enhanced security compliance.
 
 ---
 
 **✅ SUCCESS**: Migration completed **17 days ahead** of the August 1, 2025 deadline!
+**✅ SECURITY FIX**: Critical 403 error resolved on August 19, 2025!

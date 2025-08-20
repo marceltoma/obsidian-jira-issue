@@ -58,7 +58,7 @@ function buildUrl(host: string, requestOptions: RequestOptions): string {
     const basePath = requestOptions.noBasePath ? '' : SettingsData.apiBasePath
     // Normalize URL parts to prevent double slashes
     const normalizedHost = host.endsWith('/') ? host.slice(0, -1) : host
-    const normalizedBasePath = basePath.startsWith('/') ? basePath : '/' + basePath
+    const normalizedBasePath = basePath ? (basePath.startsWith('/') ? basePath : '/' + basePath) : ''
     const normalizedPath = requestOptions.path.startsWith('/') ? requestOptions.path : '/' + requestOptions.path
     
     const url = new URL(`${normalizedHost}${normalizedBasePath}${normalizedPath}`)
@@ -109,8 +109,8 @@ async function sendRequest(requestOptions: RequestOptions): Promise<any> {
                 throw new Error(`Bad Request: The query is not valid`)
             case 401:
                 throw new Error(`Unauthorized: Please check your authentication credentials`)
-//            case 403:
-//                throw new Error(`Forbidden: You don't have permission to access this resource. Check your API token permissions and Jira project access.`)
+            case 403:
+                throw new Error(`Forbidden: You don't have permission to access this resource. Check your API token permissions and Jira project access.`)
             case 404:
                 throw new Error(`Not Found: Issue does not exist`)
             default:
@@ -130,7 +130,11 @@ async function sendRequestWithAccount(account: IJiraIssueAccountSettings, reques
         headers: {
             ...buildHeaders(account),
             'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            // CRITICAL: User-Agent header is required as of August 2025 due to Atlassian's 
+            // enhanced API security. Without this header, requests return 403 Forbidden.
+            // This was enforced around the API migration deadline (August 1, 2025).
+            'User-Agent': 'obsidian-jira-issue-plugin'
         },
         contentType: 'application/json',
     }
@@ -141,26 +145,8 @@ async function sendRequestWithAccount(account: IJiraIssueAccountSettings, reques
     }
     
     try {
-        console.log('JiraIssue:Request Details:', {
-            method: requestUrlParam.method,
-            url: requestUrlParam.url,
-            headers: requestUrlParam.headers,
-            hasBody: !!requestUrlParam.body,
-            bodyLength: requestUrlParam.body
-                ? typeof requestUrlParam.body === 'string'
-                    ? requestUrlParam.body.length
-                    : (requestUrlParam.body instanceof ArrayBuffer ? requestUrlParam.body.byteLength : 0)
-                : 0
-        })
-        
+
         response = await requestUrl(requestUrlParam)
-        
-        console.log('JiraIssue:Response Details:', {
-            status: response.status,
-            headers: response.headers,
-            hasJson: !!response.json,
-            jsonKeys: response.json ? Object.keys(response.json) : []
-        })
         
         SettingsData.logRequestsResponses && console.info('JiraIssue:Fetch:', { request: requestUrlParam, response })
     } catch (errorResponse) {

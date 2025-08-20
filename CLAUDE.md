@@ -1,0 +1,1 @@
+- Don't use fallback mechanisms for Jira endpoints
