@@ -245,11 +245,48 @@ const getAllIssues = async (jql) => {
 
 **Lesson Learned**: API migrations may include security policy changes beyond just endpoint updates. Always include proper request headers to comply with API security requirements.
 
+### Critical Data Retrieval Fix (August 20, 2025)
+
+**Issue Discovered**: After the API migration and security fixes, users reported that search results were not returning complete issue data - only basic metadata was being returned.
+
+**Root Cause Analysis**: The new JQL endpoint `/rest/api/3/search/jql` requires explicit field specification in the POST request body. When no specific fields were requested, the code was setting `fields: undefined`, causing the API to return minimal data instead of complete issue objects.
+
+**Technical Details**:
+- **Problem**: `fields: opt.fields.length > 0 ? opt.fields : undefined` in request body
+- **Impact**: Search queries returned issues with missing or incomplete field data
+- **Symptoms**: Empty or partial issue summaries, missing assignees, no status information
+
+**Fix Applied**: 
+1. **Core Fix**: Updated search requests to include `fields: ["*all"]` parameter when no specific fields are requested
+2. **Implementation**: Modified `searchFenceRenderer.ts` to explicitly pass `fields: ["*all"]` to `getSearchResults()` calls
+3. **Result**: All issue fields are now properly returned from the Jira API
+
+**Code Changes**:
+```javascript
+// OLD - Caused incomplete data
+JiraClient.getSearchResults(searchView.query, { 
+    limit: searchView.limit || SettingsData.searchResultsLimit, 
+    account: searchView.account 
+})
+
+// NEW - Returns complete issue data
+JiraClient.getSearchResults(searchView.query, { 
+    limit: searchView.limit || SettingsData.searchResultsLimit, 
+    fields: ["*all"], 
+    account: searchView.account 
+})
+```
+
+**Impact**: This fix ensures that issue search results now contain complete field data including summaries, assignees, status, priority, and all other issue metadata.
+
+**Lesson Learned**: API migrations may change default field behavior. Always explicitly specify required fields to ensure complete data retrieval.
+
 ### Next Steps
 
-The migration is **COMPLETE and READY** for production deployment. The plugin will continue working after August 1, 2025 deadline with improved performance and enhanced security compliance.
+The migration is **COMPLETE and READY** for production deployment. The plugin will continue working after August 1, 2025 deadline with improved performance, enhanced security compliance, and complete data retrieval.
 
 ---
 
 **✅ SUCCESS**: Migration completed **17 days ahead** of the August 1, 2025 deadline!
 **✅ SECURITY FIX**: Critical 403 error resolved on August 19, 2025!
+**✅ DATA FIX**: Missing issue data problem resolved on August 20, 2025!
